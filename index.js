@@ -11,7 +11,7 @@ app.use(bodyParser.json());
 // ---------------------------------------------
 // Environment Variables
 // ---------------------------------------------
-const VERIFY_TOKEN = process.env.VERIFY_TOKEN || "my_secret";
+const VERIFY_TOKEN = process.env.VERIFY_TOKEN || "siri_webhook_2024";
 const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
 const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID;
 
