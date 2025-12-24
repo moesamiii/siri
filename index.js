@@ -37,6 +37,31 @@ global.tempBookings = global.tempBookings || {};
 const tempBookings = global.tempBookings;
 
 // ---------------------------------------------
+// WhatsApp Webhook for /api/webhook
+// ---------------------------------------------
+app.get("/api/webhook", (req, res) => {
+  const mode = req.query["hub.mode"];
+  const token = req.query["hub.verify_token"];
+  const challenge = req.query["hub.challenge"];
+
+  if (mode === "subscribe" && token === VERIFY_TOKEN) {
+    console.log("✅ Webhook verified!");
+    return res.status(200).send(challenge);
+  }
+  return res.status(403).send("Forbidden");
+});
+
+app.post("/api/webhook", async (req, res) => {
+  try {
+    console.log("📩 Incoming webhook:", JSON.stringify(req.body, null, 2));
+    return res.status(200).send("OK");
+  } catch (err) {
+    console.error("❌ Webhook error:", err);
+    return res.status(500).send("Error");
+  }
+});
+
+// ---------------------------------------------
 // Basic routes (non-webhook)
 // ---------------------------------------------
 app.get("/", (req, res) => {
