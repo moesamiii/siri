@@ -2,11 +2,9 @@ const express = require("express");
 const bodyParser = require("body-parser");
 const path = require("path");
 
-// ✅ FIX: dynamic fetch for Vercel legacy
+// Dynamic fetch for Vercel
 const fetch = (...args) =>
   import("node-fetch").then(({ default: fetch }) => fetch(...args));
-
-const { detectSheetName, getAllBookings } = require("./helpers");
 
 const app = express();
 app.use(bodyParser.json());
@@ -25,31 +23,27 @@ console.log("✅ WHATSAPP_TOKEN:", !!WHATSAPP_TOKEN);
 console.log("✅ PHONE_NUMBER_ID:", PHONE_NUMBER_ID || "❌");
 
 // ---------------------------------------------
-try {
-  detectSheetName();
-} catch (e) {
-  console.error("detectSheetName failed:", e.message);
-}
-
+// Webhook verification (GET)
 // ---------------------------------------------
-// Webhook verification
-// ---------------------------------------------
-app.get("/api/webhook", (req, res) => {
+app.get("/webhook", (req, res) => {
   const mode = req.query["hub.mode"];
   const token = req.query["hub.verify_token"];
   const challenge = req.query["hub.challenge"];
 
   if (mode === "subscribe" && token === VERIFY_TOKEN) {
+    console.log("✅ Webhook verified");
     return res.status(200).send(challenge);
   }
+
+  console.log("❌ Webhook verification failed");
   return res.sendStatus(403);
 });
 
 // ---------------------------------------------
-// Webhook listener (AUTO REPLY)
+// Webhook listener (POST) – AUTO REPLY
 // ---------------------------------------------
-app.post("/api/webhook", async (req, res) => {
-  res.sendStatus(200); // MUST respond immediately
+app.post("/webhook", async (req, res) => {
+  res.sendStatus(200); // respond immediately
 
   try {
     const entry = req.body.entry?.[0];
@@ -64,7 +58,7 @@ app.post("/api/webhook", async (req, res) => {
 
     const from = message.from;
 
-    console.log("📩 Incoming:", text, "from", from);
+    console.log("📩 Incoming message:", text, "from", from);
 
     const reply =
       "مرحباً بك 👋\n" +
@@ -97,15 +91,6 @@ app.post("/api/webhook", async (req, res) => {
 // ---------------------------------------------
 app.get("/", (req, res) => {
   res.send("WhatsApp webhook running ✅");
-});
-
-app.get("/dashboard", (req, res) => {
-  res.sendFile(path.join(__dirname, "dashboard.html"));
-});
-
-app.get("/api/bookings", async (req, res) => {
-  const data = await getAllBookings();
-  res.json(data);
 });
 
 // ---------------------------------------------
