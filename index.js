@@ -1,7 +1,11 @@
-// index.js
 const express = require("express");
 const bodyParser = require("body-parser");
 const path = require("path");
+
+// ✅ FIX: dynamic fetch for Vercel legacy
+const fetch = (...args) =>
+  import("node-fetch").then(({ default: fetch }) => fetch(...args));
+
 const { detectSheetName, getAllBookings } = require("./helpers");
 
 const app = express();
@@ -15,30 +19,20 @@ const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
 const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID;
 
 // ---------------------------------------------
-// Startup logs
-// ---------------------------------------------
 console.log("🚀 Server starting...");
-console.log("✅ VERIFY_TOKEN loaded:", !!VERIFY_TOKEN);
-console.log("✅ WHATSAPP_TOKEN loaded:", !!WHATSAPP_TOKEN);
-console.log("✅ PHONE_NUMBER_ID loaded:", PHONE_NUMBER_ID || "❌ Not found");
+console.log("✅ VERIFY_TOKEN:", !!VERIFY_TOKEN);
+console.log("✅ WHATSAPP_TOKEN:", !!WHATSAPP_TOKEN);
+console.log("✅ PHONE_NUMBER_ID:", PHONE_NUMBER_ID || "❌");
 
-// ---------------------------------------------
-// Detect sheet name
 // ---------------------------------------------
 try {
   detectSheetName();
-} catch (err) {
-  console.error("⚠️ detectSheetName() failed:", err.message);
+} catch (e) {
+  console.error("detectSheetName failed:", e.message);
 }
 
 // ---------------------------------------------
-// Global booking memory
-// ---------------------------------------------
-global.tempBookings = global.tempBookings || {};
-const tempBookings = global.tempBookings;
-
-// ---------------------------------------------
-// WhatsApp Webhook Verification
+// Webhook verification
 // ---------------------------------------------
 app.get("/api/webhook", (req, res) => {
   const mode = req.query["hub.mode"];
@@ -46,26 +40,22 @@ app.get("/api/webhook", (req, res) => {
   const challenge = req.query["hub.challenge"];
 
   if (mode === "subscribe" && token === VERIFY_TOKEN) {
-    console.log("✅ Webhook verified!");
     return res.status(200).send(challenge);
   }
-  return res.status(403).send("Forbidden");
+  return res.sendStatus(403);
 });
 
 // ---------------------------------------------
-// WhatsApp Webhook Listener (REPLY ENABLED)
+// Webhook listener (AUTO REPLY)
 // ---------------------------------------------
 app.post("/api/webhook", async (req, res) => {
-  res.sendStatus(200); // IMPORTANT: respond immediately
+  res.sendStatus(200); // MUST respond immediately
 
   try {
-    console.log("📩 Incoming webhook:", JSON.stringify(req.body, null, 2));
-
     const entry = req.body.entry?.[0];
     const change = entry?.changes?.[0];
     const value = change?.value;
 
-    // Ignore non-message updates (statuses, etc.)
     if (!value?.messages) return;
 
     const message = value.messages[0];
@@ -74,10 +64,8 @@ app.post("/api/webhook", async (req, res) => {
 
     const from = message.from;
 
-    console.log("📩 Message text:", text);
-    console.log("📩 From:", from);
+    console.log("📩 Incoming:", text, "from", from);
 
-    // 👇 SAME STYLE AS YOUR ORIGINAL PROJECT
     const reply =
       "مرحباً بك 👋\n" +
       "يسعدنا مساعدتك في عيادة ابتسامة الطبية 🦷\n\n" +
@@ -102,90 +90,26 @@ app.post("/api/webhook", async (req, res) => {
     const data = await response.json();
     console.log("✅ Reply sent:", data);
   } catch (err) {
-    console.error("❌ Webhook error:", err);
+    console.error("❌ Webhook reply failed:", err);
   }
 });
 
 // ---------------------------------------------
-// Basic routes
-// ---------------------------------------------
 app.get("/", (req, res) => {
-  res.send("✅ WhatsApp Webhook for Clinic is running on Vercel!");
+  res.send("WhatsApp webhook running ✅");
 });
 
-app.get("/dashboard", async (req, res) => {
+app.get("/dashboard", (req, res) => {
   res.sendFile(path.join(__dirname, "dashboard.html"));
 });
 
 app.get("/api/bookings", async (req, res) => {
-  try {
-    const data = await getAllBookings();
-    res.json(data);
-  } catch (err) {
-    console.error("❌ Error fetching bookings:", err);
-    res.status(500).json({ error: "Failed to fetch bookings" });
-  }
+  const data = await getAllBookings();
+  res.json(data);
 });
 
-// ---------------------------------------------
-// WhatsApp Send API (UNCHANGED – WORKING)
-// ---------------------------------------------
-app.post("/sendWhatsApp", async (req, res) => {
-  try {
-    const { name, phone, service, appointment, image } = req.body;
-
-    if (!name || !phone) {
-      return res.status(400).json({ error: "Missing name or phone number" });
-    }
-
-    const messageText =
-      `👋 مرحبًا ${name}!\n` +
-      `تم حجز موعدك لخدمة ${service} في Smile Clinic 🦷\n` +
-      `📅 ${appointment}`;
-
-    const url = `https://graph.facebook.com/v21.0/${PHONE_NUMBER_ID}/messages`;
-    const headers = {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${WHATSAPP_TOKEN}`,
-    };
-
-    if (image && image.startsWith("http")) {
-      await fetch(url, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          messaging_product: "whatsapp",
-          to: phone,
-          type: "image",
-          image: { link: image, caption: messageText },
-        }),
-      });
-    }
-
-    await fetch(url, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        messaging_product: "whatsapp",
-        to: phone,
-        type: "text",
-        text: {
-          body: messageText + "\n\n📞 للحجز أو الاستفسار، تواصل معنا الآن!",
-        },
-      }),
-    });
-
-    res.json({ success: true });
-  } catch (error) {
-    console.error("🚨 Error sending WhatsApp message:", error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// ---------------------------------------------
-// Run Server
 // ---------------------------------------------
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`✅ Server running on port ${PORT}`);
+  console.log(`Server running on ${PORT}`);
 });
