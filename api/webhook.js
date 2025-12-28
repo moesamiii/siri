@@ -1,42 +1,46 @@
 export default async function handler(req, res) {
-  // =========================
-  // 1️⃣ WEBHOOK VERIFICATION
-  // =========================
+  // ===============================
+  // 1️⃣ WEBHOOK VERIFICATION (META)
+  // ===============================
   if (req.method === "GET") {
     const mode = req.query["hub.mode"];
     const token = req.query["hub.verify_token"];
     const challenge = req.query["hub.challenge"];
+
+    console.log("🔎 Verify attempt:", mode, token);
 
     if (mode === "subscribe" && token === process.env.VERIFY_TOKEN) {
       console.log("✅ Webhook verified");
       return res.status(200).send(challenge);
     }
 
-    console.log("❌ Webhook verification failed");
+    console.log("❌ Verification failed");
     return res.status(403).send("Forbidden");
   }
 
-  // =========================
+  // ===============================
   // 2️⃣ INCOMING MESSAGES
-  // =========================
+  // ===============================
   if (req.method === "POST") {
+    res.status(200).json({ ok: true }); // respond immediately
+
     try {
       const entry = req.body.entry?.[0];
       const change = entry?.changes?.[0];
       const value = change?.value;
       const message = value?.messages?.[0];
 
-      // Always ACK WhatsApp first
-      res.sendStatus(200);
-
-      if (!message) return;
+      if (!message) {
+        console.log("ℹ️ No message in payload");
+        return;
+      }
 
       const from = message.from;
       const text = message.text?.body;
 
-      console.log("📩 Incoming message:", text, "from:", from);
+      console.log("📩 Message received:", text, "from:", from);
 
-      const replyText = "✅ Webhook works! Reply received.";
+      const reply = "✅ Webhook is working perfectly!";
 
       await fetch(
         `https://graph.facebook.com/v21.0/${process.env.PHONE_NUMBER_ID}/messages`,
@@ -50,18 +54,14 @@ export default async function handler(req, res) {
             messaging_product: "whatsapp",
             to: from,
             type: "text",
-            text: { body: replyText },
+            text: { body: reply },
           }),
         }
       );
 
-      console.log("✅ Reply sent successfully");
-      return;
+      console.log("✅ Reply sent");
     } catch (err) {
       console.error("❌ Webhook error:", err);
-      return;
     }
   }
-
-  return res.sendStatus(405);
 }
