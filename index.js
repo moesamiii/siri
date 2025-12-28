@@ -2,7 +2,6 @@
 const express = require("express");
 const bodyParser = require("body-parser");
 const path = require("path");
-const fetch = require("node-fetch");
 
 const { detectSheetName, getAllBookings } = require("./helpers");
 
@@ -50,7 +49,7 @@ app.get("/api/webhook", (req, res) => {
 });
 
 // ---------------------------------------------
-// WhatsApp Webhook Listener (SAFE VERSION)
+// WhatsApp Webhook Listener (STABLE & SAFE)
 // ---------------------------------------------
 app.post("/api/webhook", async (req, res) => {
   // Always acknowledge immediately
@@ -64,10 +63,10 @@ app.post("/api/webhook", async (req, res) => {
 
     if (!message) return;
 
-    // 🚫 Ignore messages sent by your own number (echo loop fix)
+    // 🚫 Ignore messages sent by your own business number (echo fix)
     if (message.from === value.metadata.phone_number_id) return;
 
-    // 🚫 Only process text messages
+    // 🚫 Only text messages
     const text = message.text?.body;
     if (!text) return;
 
@@ -75,8 +74,8 @@ app.post("/api/webhook", async (req, res) => {
 
     console.log("📩 Incoming WhatsApp message:", text);
 
-    // 👉 Example AI / auto reply (replace later)
-    const reply = `👋 مرحبًا!\nوصلت رسالتك: "${text}"\nسنتواصل معك قريبًا.`;
+    const reply =
+      `👋 مرحبًا!\n` + `وصلت رسالتك: "${text}"\n` + `سنتواصل معك قريبًا.`;
 
     const url = `https://graph.facebook.com/v21.0/${PHONE_NUMBER_ID}/messages`;
 
@@ -128,7 +127,7 @@ app.get("/api/bookings", async (req, res) => {
 });
 
 // ---------------------------------------------
-// WhatsApp Send API (TEXT + IMAGE) – unchanged
+// WhatsApp Send API (TEXT + IMAGE)
 // ---------------------------------------------
 app.post("/sendWhatsApp", async (req, res) => {
   try {
@@ -150,7 +149,7 @@ app.post("/sendWhatsApp", async (req, res) => {
       Authorization: `Bearer ${WHATSAPP_TOKEN}`,
     };
 
-    // Image message
+    // Image message (optional)
     if (image && image.startsWith("http")) {
       await fetch(url, {
         method: "POST",
@@ -159,12 +158,15 @@ app.post("/sendWhatsApp", async (req, res) => {
           messaging_product: "whatsapp",
           to: phone,
           type: "image",
-          image: { link: image, caption: messageText },
+          image: {
+            link: image,
+            caption: messageText,
+          },
         }),
       });
     }
 
-    // Text fallback / follow-up
+    // Text message
     await fetch(url, {
       method: "POST",
       headers,
@@ -172,7 +174,9 @@ app.post("/sendWhatsApp", async (req, res) => {
         messaging_product: "whatsapp",
         to: phone,
         type: "text",
-        text: { body: messageText + "\n\n📞 تواصل معنا لأي استفسار" },
+        text: {
+          body: messageText + "\n\n📞 تواصل معنا لأي استفسار",
+        },
       }),
     });
 
