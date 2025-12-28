@@ -1,36 +1,40 @@
 export default async function handler(req, res) {
-  // ---------------------------
-  // 1️⃣ Webhook verification
-  // ---------------------------
+  // =========================
+  // 1️⃣ WEBHOOK VERIFICATION
+  // =========================
   if (req.method === "GET") {
     const mode = req.query["hub.mode"];
     const token = req.query["hub.verify_token"];
     const challenge = req.query["hub.challenge"];
 
     if (mode === "subscribe" && token === process.env.VERIFY_TOKEN) {
+      console.log("✅ Webhook verified");
       return res.status(200).send(challenge);
     }
+
+    console.log("❌ Webhook verification failed");
     return res.status(403).send("Forbidden");
   }
 
-  // ---------------------------
-  // 2️⃣ Incoming messages
-  // ---------------------------
+  // =========================
+  // 2️⃣ INCOMING MESSAGES
+  // =========================
   if (req.method === "POST") {
-    res.status(200).json({ status: "received" });
-
     try {
       const entry = req.body.entry?.[0];
       const change = entry?.changes?.[0];
       const value = change?.value;
       const message = value?.messages?.[0];
 
+      // Always ACK WhatsApp first
+      res.sendStatus(200);
+
       if (!message) return;
 
       const from = message.from;
       const text = message.text?.body;
 
-      console.log("📩 Incoming:", text, "from:", from);
+      console.log("📩 Incoming message:", text, "from:", from);
 
       const replyText = "✅ Webhook works! Reply received.";
 
@@ -51,9 +55,13 @@ export default async function handler(req, res) {
         }
       );
 
-      console.log("✅ Reply sent");
+      console.log("✅ Reply sent successfully");
+      return;
     } catch (err) {
       console.error("❌ Webhook error:", err);
+      return;
     }
   }
+
+  return res.sendStatus(405);
 }
