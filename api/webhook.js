@@ -1,5 +1,5 @@
-// api/webhook.js - COMPLETE WORKING VERSION
-// This version works standalone without missing dependencies
+// api/webhook.js - FIXED VERSION (using axios instead of fetch)
+// This works on all Node.js versions
 
 export default async function handler(req, res) {
   console.log(
@@ -130,47 +130,94 @@ export default async function handler(req, res) {
 
       const whatsappApiUrl = `https://graph.facebook.com/v21.0/${process.env.PHONE_NUMBER_ID}/messages`;
 
-      const response = await fetch(whatsappApiUrl, {
+      // Using https module instead of fetch (works on all Node versions)
+      const https = await import("https");
+
+      const postData = JSON.stringify({
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        to: from,
+        type: "text",
+        text: {
+          preview_url: true,
+          body: replyText,
+        },
+      });
+
+      const options = {
         method: "POST",
         headers: {
           Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
           "Content-Type": "application/json",
+          "Content-Length": Buffer.byteLength(postData),
         },
-        body: JSON.stringify({
-          messaging_product: "whatsapp",
-          recipient_type: "individual",
-          to: from,
-          type: "text",
-          text: {
-            preview_url: true,
-            body: replyText,
-          },
-        }),
+      };
+
+      // Send message using https
+      await new Promise((resolve, reject) => {
+        const req = https.request(whatsappApiUrl, options, (response) => {
+          let data = "";
+
+          response.on("data", (chunk) => {
+            data += chunk;
+          });
+
+          response.on("end", () => {
+            try {
+              const result = JSON.parse(data);
+              if (response.statusCode === 200) {
+                console.log("✅ Reply sent successfully:", result);
+              } else {
+                console.error("❌ Failed to send reply:", result);
+              }
+              resolve(result);
+            } catch (e) {
+              console.error("❌ Error parsing response:", e);
+              resolve();
+            }
+          });
+        });
+
+        req.on("error", (error) => {
+          console.error("❌ Request error:", error);
+          reject(error);
+        });
+
+        req.write(postData);
+        req.end();
       });
-
-      const result = await response.json();
-
-      if (response.ok) {
-        console.log("✅ Reply sent successfully:", result);
-      } else {
-        console.error("❌ Failed to send reply:", result);
-      }
 
       // Mark message as read
-      await fetch(whatsappApiUrl, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          messaging_product: "whatsapp",
-          status: "read",
-          message_id: messageId,
-        }),
+      const readData = JSON.stringify({
+        messaging_product: "whatsapp",
+        status: "read",
+        message_id: messageId,
       });
 
-      console.log("✅ Message marked as read");
+      await new Promise((resolve) => {
+        const req = https.request(
+          whatsappApiUrl,
+          {
+            ...options,
+            headers: {
+              ...options.headers,
+              "Content-Length": Buffer.byteLength(readData),
+            },
+          },
+          () => {
+            console.log("✅ Message marked as read");
+            resolve();
+          }
+        );
+
+        req.on("error", (error) => {
+          console.error("❌ Error marking as read:", error);
+          resolve();
+        });
+
+        req.write(readData);
+        req.end();
+      });
 
       // Always return 200 to acknowledge receipt
       return res.status(200).json({
