@@ -157,6 +157,7 @@ app.post("/sendWhatsApp", async (req, res) => {
         message: "Image sent successfully",
       });
     }
+    3;
 
     // Case 2: Text only (no image)
     const textPayload = {
